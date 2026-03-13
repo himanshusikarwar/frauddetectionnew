@@ -3,7 +3,8 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "8h" });
+  const secret = process.env.JWT_SECRET || "dev-secret-change-in-production";
+  return jwt.sign({ id }, secret, { expiresIn: "8h" });
 };
 
 // @desc    Login user
@@ -13,23 +14,24 @@ const login = async (req, res) => {
     const { username, password } = req.body;
 
     // Check for demo accounts first (no DB required for demo)
+    // Passwords are unique to avoid browser "data breach" warnings
     const demoAccounts = {
       admin: {
-        password: "admin123",
+        password: "FwAdmin#Demo24",
         name: "Admin User",
         role: "admin",
         email: "admin@fraudwatch.com",
         department: "Security Operations",
       },
       analyst: {
-        password: "analyst123",
+        password: "FwAnalyst#Demo24",
         name: "Sarah Chen",
         role: "analyst",
         email: "sarah@fraudwatch.com",
         department: "Fraud Investigation",
       },
       investigator: {
-        password: "invest123",
+        password: "FwInvest#Demo24",
         name: "James Wilson",
         role: "investigator",
         email: "james@fraudwatch.com",

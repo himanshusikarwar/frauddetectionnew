@@ -1,20 +1,38 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Activity, Search, Filter, X, Download } from "lucide-react";
+import { Activity, Search, Filter, X, Download, RefreshCw } from "lucide-react";
 import ActivityTable from "../components/ActivityTable";
 import api from "../services/api";
-import { DEMO_ACTIVITIES } from "../data/demoData";
 
 export default function Activities() {
-  const [activities, setActivities] = useState(DEMO_ACTIVITIES);
+  const [activities, setActivities] = useState([]);
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("all");
   const [anomalyOnly, setAnomaly] = useState(false);
 
+  const [backendError, setBackendError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchActivities = () => {
+    setBackendError(null);
+    setRefreshing(true);
+    api
+      .get("/api/activities?limit=100")
+      .then(({ data }) => {
+        if (data.success && data.data) setActivities(Array.isArray(data.data) ? data.data : []);
+      })
+      .catch((err) => {
+        setBackendError(
+          err.response?.status === 401
+            ? "Log in to see live activity data."
+            : "Start the backend and MongoDB to see live data."
+        );
+      })
+      .finally(() => setRefreshing(false));
+  };
+
   useEffect(() => {
-    api.get("/api/activities?limit=100")
-      .then(({ data }) => { if (data.success && data.data.length) setActivities(data.data); })
-      .catch(() => {});
+    fetchActivities();
   }, []);
 
   const filtered = activities.filter(a => {
@@ -29,9 +47,29 @@ export default function Activities() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <div><h1 style={{ color: "#fff", fontSize: 24, fontWeight: 700 }}>Activity Logs</h1><p style={{ color: "#64748b", fontSize: 14 }}>Monitor all privileged user actions</p></div>
-        <button style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#94a3b8", fontSize: 13, cursor: "pointer" }}><Download size={14} /> Export CSV</button>
+      {backendError && (
+        <div
+          style={{
+            background: "rgba(251, 191, 36, 0.12)",
+            border: "1px solid rgba(251, 191, 36, 0.4)",
+            borderRadius: 12,
+            padding: "12px 16px",
+            color: "#fbbf24",
+            fontSize: 13,
+          }}
+        >
+          {backendError}
+        </div>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div><h1 style={{ color: "#fff", fontSize: 24, fontWeight: 700 }}>Activity Logs</h1><p style={{ color: "#64748b", fontSize: 14 }}>Monitor all privileged user actions. Edited in MongoDB? Click Refresh to see changes.</p></div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={fetchActivities} disabled={refreshing} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "1px solid rgba(96, 165, 250, 0.4)", background: "rgba(96, 165, 250, 0.12)", color: "#60a5fa", fontSize: 13, fontWeight: 600, cursor: refreshing ? "wait" : "pointer" }}>
+            <RefreshCw size={14} style={{ animation: refreshing ? "spin 1s linear infinite" : "none" }} />
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+          <button style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#94a3b8", fontSize: 13, cursor: "pointer" }}><Download size={14} /> Export CSV</button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
@@ -53,6 +91,7 @@ export default function Activities() {
       </div>
 
       <div className="glass-card" style={{ padding: 24 }}><ActivityTable activities={filtered} /></div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </motion.div>
   );
 }

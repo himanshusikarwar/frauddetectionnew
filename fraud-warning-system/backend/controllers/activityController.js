@@ -129,7 +129,8 @@ const getStats = async (req, res) => {
     const recentTimeline = await ActivityLog.find({ isAnomaly: true })
       .sort({ timestamp: -1 })
       .limit(20)
-      .select("employeeName actionType riskScore timestamp department");
+      .select("employeeName actionType riskScore timestamp department")
+      .lean();
 
     res.json({
       success: true,

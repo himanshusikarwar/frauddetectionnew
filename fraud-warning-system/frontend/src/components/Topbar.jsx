@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Bell, Search, AlertTriangle, X, User, Shield, Activity } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { DEMO_ALERTS, DEMO_ACTIVITIES, EMPLOYEES_LIST } from "../data/demoData";
+import api from "../services/api";
 
 export default function Topbar() {
   const { user } = useAuth();
@@ -18,10 +18,23 @@ export default function Topbar() {
   const [searchVal, setSearchVal] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [searchResults, setSearchResults] = useState({ employees: [], alerts: [], activities: [] });
+  const [liveAlerts, setLiveAlerts] = useState([]);
+  const [liveActivities, setLiveActivities] = useState([]);
   const notifRef = useRef(null);
   const searchRef = useRef(null);
 
-  // Search functionality
+  // Fetch live data for search when user is logged in
+  useEffect(() => {
+    if (!user) return;
+    api.get("/api/alerts?limit=100").then(({ data }) => {
+      if (data.success && data.data?.length) setLiveAlerts(data.data);
+    }).catch(() => {});
+    api.get("/api/activities?limit=100").then(({ data }) => {
+      if (data.success && data.data?.length) setLiveActivities(data.data);
+    }).catch(() => {});
+  }, [user]);
+
+  // Search functionality: use only live data from MongoDB
   useEffect(() => {
     if (searchVal.trim().length < 2) {
       setSearchResults({ employees: [], alerts: [], activities: [] });
@@ -29,18 +42,27 @@ export default function Topbar() {
       return;
     }
     const q = searchVal.toLowerCase();
-    const employees = EMPLOYEES_LIST.filter(e =>
-      e.name.toLowerCase().includes(q) || e.dept.toLowerCase().includes(q) || e.role.toLowerCase().includes(q)
+    const allPeople = [];
+    liveAlerts.forEach(a => {
+      if (a.employeeName) allPeople.push({ name: a.employeeName, dept: a.department || "", role: a.role || "" });
+    });
+    liveActivities.forEach(a => {
+      if (a.employeeName && !allPeople.some(p => p.name === a.employeeName)) {
+        allPeople.push({ name: a.employeeName, dept: a.department || "", role: a.role || "" });
+      }
+    });
+    const employees = allPeople.filter(e =>
+      (e.name || "").toLowerCase().includes(q) || (e.dept || "").toLowerCase().includes(q) || (e.role || "").toLowerCase().includes(q)
     ).slice(0, 3);
-    const alerts = DEMO_ALERTS.filter(a =>
-      a.employeeName.toLowerCase().includes(q) || a.department.toLowerCase().includes(q) || a.alertId.toLowerCase().includes(q)
+    const alerts = liveAlerts.filter(a =>
+      (a.employeeName || "").toLowerCase().includes(q) || (a.department || "").toLowerCase().includes(q) || (a.alertId || "").toLowerCase().includes(q)
     ).slice(0, 3);
-    const activities = DEMO_ACTIVITIES.filter(a =>
-      a.employeeName.toLowerCase().includes(q) || a.actionType.toLowerCase().includes(q)
+    const activities = liveActivities.filter(a =>
+      (a.employeeName || "").toLowerCase().includes(q) || (a.actionType || "").toLowerCase().includes(q)
     ).slice(0, 2);
     setSearchResults({ employees, alerts, activities });
     setShowSearch(true);
-  }, [searchVal]);
+  }, [searchVal, liveAlerts, liveActivities]);
 
   // Close search when clicking outside
   useEffect(() => {
@@ -155,9 +177,9 @@ export default function Topbar() {
                   <div style={{ padding: "10px 16px", color: "#64748b", fontSize: 11, fontWeight: 600, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                     <User size={12} style={{ display: "inline", marginRight: 6 }} /> Employees
                   </div>
-                  {searchResults.employees.map(emp => (
+                  {searchResults.employees.map((emp, idx) => (
                     <div
-                      key={emp.id}
+                      key={emp.name + "-" + idx}
                       onClick={() => { navigate("/activities"); setShowSearch(false); setSearchVal(""); }}
                       style={{ padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", transition: "background 0.15s" }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
@@ -167,7 +189,7 @@ export default function Topbar() {
                         <p style={{ color: "#fff", fontSize: 13, fontWeight: 500 }}>{emp.name}</p>
                         <p style={{ color: "#64748b", fontSize: 11 }}>{emp.dept} • {emp.role}</p>
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: emp.risk >= 75 ? "#f87171" : emp.risk >= 40 ? "#facc15" : "#4ade80" }}>{emp.risk}%</span>
+                      {emp.risk != null && <span style={{ fontSize: 12, fontWeight: 700, color: emp.risk >= 75 ? "#f87171" : emp.risk >= 40 ? "#facc15" : "#4ade80" }}>{emp.risk}%</span>}
                     </div>
                   ))}
                 </div>

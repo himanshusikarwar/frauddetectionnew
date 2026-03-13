@@ -93,9 +93,9 @@ Frontend runs on: http://localhost:5173
 
 | Role         | Username     | Password   |
 | ------------ | ------------ | ---------- |
-| Admin        | admin        | admin123   |
-| Analyst      | analyst      | analyst123 |
-| Investigator | investigator | invest123  |
+| Admin        | admin        | FwAdmin#Demo24   |
+| Analyst      | analyst      | FwAnalyst#Demo24 |
+| Investigator | investigator | FwInvest#Demo24  |
 
 ---
 

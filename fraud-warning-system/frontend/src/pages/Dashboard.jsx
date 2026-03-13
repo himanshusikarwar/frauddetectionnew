@@ -16,25 +16,31 @@ import FraudGraph from "../components/FraudGraph";
 import Timeline from "../components/Timeline";
 import LiveDemoMode from "../components/LiveDemoMode";
 import api from "../services/api";
-import {
-  DEMO_STATS,
-  DEMO_DEPT_STATS,
-  DEMO_RISK_DIST,
-  DEMO_ACTIVITIES,
-} from "../data/demoData";
 
 const FRAUD_NAMES = ["Marcus Thompson", "David Chen", "Lisa Rodriguez"];
 
+const EMPTY_STATS = {
+  totalEmployees: 0,
+  totalAlerts: 0,
+  highRiskUsers: 0,
+  anomaliesToday: 0,
+};
+
 export default function Dashboard() {
-  const [stats, setStats] = useState(DEMO_STATS);
-  const [deptStats, setDeptStats] = useState(DEMO_DEPT_STATS);
-  const [riskDist, setRiskDist] = useState(DEMO_RISK_DIST);
+  const [stats, setStats] = useState(EMPTY_STATS);
+  const [deptStats, setDeptStats] = useState([]);
+  const [riskDist, setRiskDist] = useState([]);
   const [timeline, setTimeline] = useState([]);
   const [simulating, setSimulating] = useState(false);
   const [liveAlert, setLiveAlert] = useState(null);
   const [usingLive, setUsingLive] = useState(false);
 
-  useEffect(() => {
+  const [backendError, setBackendError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchStats = () => {
+    setBackendError(null);
+    setRefreshing(true);
     api
       .get("/api/activities/stats")
       .then(({ data }) => {
@@ -46,9 +52,19 @@ export default function Dashboard() {
           setUsingLive(true);
         }
       })
-      .catch(() => {
-        // Backend unavailable — keep demo data silently
-      });
+      .catch((err) => {
+        const status = err.response?.status;
+        const msg =
+          status === 401
+            ? "Log in to see live data from the database."
+            : "Start the backend (and MongoDB) to see live data.";
+        setBackendError(msg);
+      })
+      .finally(() => setRefreshing(false));
+  };
+
+  useEffect(() => {
+    fetchStats();
   }, []);
 
   const simulateFraud = () => {
@@ -62,14 +78,28 @@ export default function Dashboard() {
     }, 1500);
   };
 
-  const anomalyEvents = DEMO_ACTIVITIES.filter((a) => a.isAnomaly);
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       style={{ display: "flex", flexDirection: "column", gap: 24 }}
     >
+      {/* Demo mode / connection notice */}
+      {!usingLive && backendError && (
+        <div
+          style={{
+            background: "rgba(251, 191, 36, 0.12)",
+            border: "1px solid rgba(251, 191, 36, 0.4)",
+            borderRadius: 12,
+            padding: "12px 16px",
+            color: "#fbbf24",
+            fontSize: 13,
+          }}
+        >
+          Log in and ensure the backend and MongoDB are running to see data. {backendError}
+        </div>
+      )}
+
       {/* Header */}
       <div
         style={{
@@ -85,10 +115,30 @@ export default function Dashboard() {
           <p style={{ color: "#64748b", fontSize: 14 }}>
             {usingLive
               ? "Live data from MongoDB"
-              : "Demo mode — start backend for live data"}
+              : "Start backend and log in for live data"}
           </p>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
+          <button
+            onClick={fetchStats}
+              disabled={refreshing}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "11px 20px",
+                borderRadius: 12,
+                border: "1px solid rgba(96, 165, 250, 0.4)",
+                background: "rgba(96, 165, 250, 0.12)",
+                color: "#60a5fa",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: refreshing ? "wait" : "pointer",
+              }}
+            >
+              <RefreshCw size={14} style={{ animation: refreshing ? "spin 1s linear infinite" : "none" }} />
+              {refreshing ? "Refreshing..." : "Refresh data"}
+            </button>
           <LiveDemoMode />
           <button
             onClick={simulateFraud}
@@ -206,10 +256,15 @@ export default function Dashboard() {
           <h3 style={{ color: "#fff", fontWeight: 600, marginBottom: 4 }}>
             Anomaly Timeline
           </h3>
-          <p style={{ color: "#64748b", fontSize: 13, marginBottom: 20 }}>
+          <p style={{ color: "#64748b", fontSize: 13, marginBottom: 4 }}>
             Recent suspicious events
           </p>
-          <Timeline events={timeline.length ? timeline : anomalyEvents} />
+          {usingLive && (
+            <p style={{ color: "#64748b", fontSize: 11, marginBottom: 16 }}>
+              Added data in MongoDB? Click &quot;Refresh data&quot; above to see it here.
+            </p>
+          )}
+          <Timeline events={timeline} />
         </div>
         <FraudGraph />
       </div>

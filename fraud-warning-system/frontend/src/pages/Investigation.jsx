@@ -4,7 +4,8 @@ import { Search, Shield, AlertTriangle } from "lucide-react";
 import ExplainabilityPanel from "../components/ExplainabilityPanel";
 import PDFReportGenerator from "../components/PDFReportGenerator";
 import api from "../services/api";
-import { DEMO_ALERTS, INVESTIGATORS } from "../data/demoData";
+
+const INVESTIGATORS = ["Sarah Chen", "James Wilson", "Maria Santos", "Derek Hughes", "Amy Zhang", "Michael Park"];
 
 const statusConfig = {
   open:           { label: "Open",           color: "#f87171", bg: "rgba(239,68,68,0.1)"    },
@@ -14,19 +15,23 @@ const statusConfig = {
 };
 
 export default function Investigation() {
-  const [cases, setCases] = useState(DEMO_ALERTS.map(a => ({ ...a, notes: a.notes || "" })));
+  const [cases, setCases] = useState([]);
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilter] = useState("all");
+  const [backendError, setBackendError] = useState(null);
 
   useEffect(() => {
+    setBackendError(null);
     api.get("/api/alerts?limit=100")
       .then(({ data }) => {
-        if (data.success && data.data.length) {
-          setCases(data.data.map(a => ({ ...a, notes: a.notes || "" })));
+        if (data.success && data.data) {
+          setCases((Array.isArray(data.data) ? data.data : []).map(a => ({ ...a, notes: a.notes || "" })));
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setBackendError("Unable to load cases. Ensure backend and MongoDB are running.");
+      });
   }, []);
 
   const filtered = cases.filter(c => {
@@ -51,6 +56,11 @@ export default function Investigation() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {backendError && (
+        <div style={{ background: "rgba(251, 191, 36, 0.12)", border: "1px solid rgba(251, 191, 36, 0.4)", borderRadius: 12, padding: "12px 16px", color: "#fbbf24", fontSize: 13 }}>
+          {backendError}
+        </div>
+      )}
       <div>
         <h1 style={{ color: "#fff", fontSize: 24, fontWeight: 700 }}>Case Investigation</h1>
         <p style={{ color: "#64748b", fontSize: 14 }}>Manage and investigate fraud cases</p>

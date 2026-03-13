@@ -5,21 +5,26 @@ import AlertTable from "../components/AlertTable";
 import ExplainabilityPanel from "../components/ExplainabilityPanel";
 import PDFReportGenerator from "../components/PDFReportGenerator";
 import api from "../services/api";
-import { DEMO_ALERTS } from "../data/demoData";
 
 const sevColor = { critical: "#ef4444", high: "#f97316", medium: "#eab308", low: "#22c55e" };
 
 export default function Alerts() {
-  const [alerts, setAlerts] = useState(DEMO_ALERTS);
+  const [alerts, setAlerts] = useState([]);
+  const [backendError, setBackendError] = useState(null);
   const [severity, setSeverity] = useState("all");
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
+    setBackendError(null);
     api.get("/api/alerts?limit=100")
-      .then(({ data }) => { if (data.success && data.data.length) setAlerts(data.data); })
-      .catch(() => {});
+      .then(({ data }) => {
+        if (data.success && data.data) setAlerts(Array.isArray(data.data) ? data.data : []);
+      })
+      .catch(() => {
+        setBackendError("Unable to load alerts. Ensure backend and MongoDB are running.");
+      });
   }, []);
 
   const filtered = alerts.filter(a => {
@@ -46,6 +51,11 @@ export default function Alerts() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {backendError && (
+        <div style={{ background: "rgba(251, 191, 36, 0.12)", border: "1px solid rgba(251, 191, 36, 0.4)", borderRadius: 12, padding: "12px 16px", color: "#fbbf24", fontSize: 13 }}>
+          {backendError}
+        </div>
+      )}
       <div><h1 style={{ color: "#fff", fontSize: 24, fontWeight: 700 }}>Fraud Alerts</h1><p style={{ color: "#64748b", fontSize: 14 }}>Real-time monitoring of suspicious activities</p></div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>

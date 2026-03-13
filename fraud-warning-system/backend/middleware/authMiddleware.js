@@ -12,7 +12,9 @@ const protect = (req, res, next) => {
     return res.status(401).json({ success: false, message: "Not authorized" });
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const secret =
+      process.env.JWT_SECRET || "dev-secret-change-in-production";
+    const decoded = jwt.verify(token, secret);
     req.user = decoded;
     next();
   } catch (error) {

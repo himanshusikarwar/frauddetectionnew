@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X, Send, Sparkles } from "lucide-react";
-import { DEMO_ALERTS, DEMO_ACTIVITIES, EMPLOYEES_LIST, DEMO_STATS } from "../data/demoData";
+import api from "../services/api";
+
+const NO_DATA_MSG = "No data available from the database. Please ensure the backend and MongoDB are running.";
 
 // ===== COMPREHENSIVE FRAUD KNOWLEDGE BASE =====
 const FRAUD_KNOWLEDGE = {
@@ -442,25 +444,49 @@ Whistleblower protections exist - report without fear of retaliation.`,
   },
 };
 
-// Dynamic data responses
-const getDynamicResponse = (type) => {
+// Dynamic data responses — use only live data from API
+function getDynamicResponse(type, liveData) {
+  const { stats = {}, alerts = [], activities = [] } = liveData || {};
+  const hasData = (alerts.length > 0 || activities.length > 0 || (stats && (stats.totalEmployees != null || stats.totalAlerts != null)));
+  if (!hasData) return NO_DATA_MSG;
+
   switch (type) {
-    case "alerts_high":
-      return `Currently, there are ${DEMO_ALERTS.filter((a) => a.severity === "critical" || a.severity === "high").length} high-priority alerts requiring immediate attention.\n\nMost Critical:\n${DEMO_ALERTS.filter((a) => a.severity === "critical" || a.severity === "high").slice(0, 3).map((a) => `• ${a.employeeName} - ${a.activityType.replace(/_/g, " ")} (Risk: ${a.riskScore}%)`).join("\n")}`;
-    case "alerts_summary":
-      return `**Alert Summary**\n\n• Total Alerts: ${DEMO_STATS.totalAlerts}\n• Critical: ${DEMO_ALERTS.filter((a) => a.severity === "critical").length}\n• High: ${DEMO_ALERTS.filter((a) => a.severity === "high").length}\n• Medium: ${DEMO_ALERTS.filter((a) => a.severity === "medium").length}\n• Low: ${DEMO_ALERTS.filter((a) => a.severity === "low").length}\n\n${DEMO_ALERTS.filter((a) => a.status === "open").length} alerts are currently open.`;
-    case "employees_highrisk":
-      return `**High-Risk Employees (Score > 70)**\n\n${EMPLOYEES_LIST.filter((e) => e.risk > 70).map((e) => `• ${e.name}\n  Department: ${e.dept}\n  Role: ${e.role}\n  Risk Score: ${e.risk}%`).join("\n\n")}`;
-    case "anomalies":
-      return `**Today's Anomalies: ${DEMO_STATS.anomaliesToday}**\n\nRecent Anomalies:\n${DEMO_ACTIVITIES.filter((a) => a.isAnomaly).slice(0, 4).map((a) => `• ${a.employeeName}\n  Action: ${a.actionType.replace(/_/g, " ")}\n  System: ${a.systemAccessed}\n  Risk: ${a.riskScore}%`).join("\n\n")}`;
+    case "alerts_high": {
+      const high = (alerts || []).filter((a) => a.severity === "critical" || a.severity === "high");
+      return `Currently, there are ${high.length} high-priority alerts requiring immediate attention.\n\nMost Critical:\n${high.slice(0, 3).map((a) => `• ${a.employeeName || "—"} - ${(a.activityType || "").replace(/_/g, " ")} (Risk: ${a.riskScore || 0}%)`).join("\n")}`;
+    }
+    case "alerts_summary": {
+      const bySev = { critical: 0, high: 0, medium: 0, low: 0 };
+      (alerts || []).forEach((a) => { if (a.severity && bySev[a.severity] != null) bySev[a.severity]++; });
+      const open = (alerts || []).filter((a) => a.status === "open").length;
+      return `**Alert Summary**\n\n• Total Alerts: ${stats.totalAlerts ?? alerts.length}\n• Critical: ${bySev.critical}\n• High: ${bySev.high}\n• Medium: ${bySev.medium}\n• Low: ${bySev.low}\n\n${open} alerts are currently open.`;
+    }
+    case "employees_highrisk": {
+      const byName = {};
+      [...(alerts || []), ...(activities || [])].forEach((a) => {
+        const name = a.employeeName;
+        if (!name) return;
+        const r = a.riskScore ?? a.risk ?? 0;
+        if (!byName[name] || (byName[name].risk < r)) byName[name] = { name, dept: a.department || "", role: a.role || "", risk: r };
+      });
+      const highRisk = Object.values(byName).filter((e) => e.risk > 70);
+      if (highRisk.length === 0) return "No high-risk employees in the current data.";
+      return `**High-Risk Employees (Score > 70)**\n\n${highRisk.map((e) => `• ${e.name}\n  Department: ${e.dept}\n  Role: ${e.role}\n  Risk Score: ${e.risk}%`).join("\n\n")}`;
+    }
+    case "anomalies": {
+      const anomalies = (activities || []).filter((a) => a.isAnomaly).slice(0, 4);
+      const count = stats.anomaliesToday ?? anomalies.length;
+      if (anomalies.length === 0) return `**Today's Anomalies: ${count}**\n\nNo recent anomalies in the data.`;
+      return `**Today's Anomalies: ${count}**\n\nRecent Anomalies:\n${anomalies.map((a) => `• ${a.employeeName || "—"}\n  Action: ${(a.actionType || "").replace(/_/g, " ")}\n  System: ${a.systemAccessed || "—"}\n  Risk: ${a.riskScore || 0}%`).join("\n\n")}`;
+    }
     case "status":
-      return `**System Status: Operational**\n\n• Employees Monitored: ${DEMO_STATS.totalEmployees}\n• Active Alerts: ${DEMO_STATS.totalAlerts}\n• High Risk Users: ${DEMO_STATS.highRiskUsers}\n• ML Model: Active (Isolation Forest)\n• Real-time Detection: Enabled\n• Last Scan: Just now`;
+      return `**System Status: Operational**\n\n• Employees Monitored: ${stats.totalEmployees ?? 0}\n• Active Alerts: ${stats.totalAlerts ?? 0}\n• High Risk Users: ${stats.highRiskUsers ?? 0}\n• ML Model: Active (Isolation Forest)\n• Real-time Detection: Enabled\n• Last Scan: Just now`;
     default:
       return null;
   }
-};
+}
 
-function getBotResponse(message) {
+function getBotResponse(message, liveData) {
   const msg = message.toLowerCase();
 
   // Greetings
@@ -510,7 +536,7 @@ function getBotResponse(message) {
     if (msg.includes("what") || msg.includes("define") || msg.includes("meaning")) {
       return FRAUD_KNOWLEDGE.definitions.anomaly;
     }
-    return getDynamicResponse("anomalies");
+    return getDynamicResponse("anomalies", liveData);
   }
 
   if (msg.includes("risk score") || msg.includes("score meaning") || msg.includes("what does the score")) {
@@ -571,36 +597,48 @@ function getBotResponse(message) {
   // ===== SYSTEM DATA QUERIES =====
   if (msg.includes("alert")) {
     if (msg.includes("high") || msg.includes("critical") || msg.includes("priority") || msg.includes("urgent")) {
-      return getDynamicResponse("alerts_high");
+      return getDynamicResponse("alerts_high", liveData);
     }
-    return getDynamicResponse("alerts_summary");
+    return getDynamicResponse("alerts_summary", liveData);
   }
 
   if (msg.includes("employee") || msg.includes("user") || msg.includes("staff")) {
     if (msg.includes("high risk") || msg.includes("risky") || msg.includes("dangerous")) {
-      return getDynamicResponse("employees_highrisk");
+      return getDynamicResponse("employees_highrisk", liveData);
     }
-    return `**Employee Monitoring**\n\n• Total Monitored: ${DEMO_STATS.totalEmployees}\n• High Risk: ${DEMO_STATS.highRiskUsers}\n\nAsk "high risk employees" for details.`;
+    const stats = (liveData && liveData.stats) || {};
+    const total = stats.totalEmployees ?? 0;
+    const highRisk = stats.highRiskUsers ?? 0;
+    if (total === 0 && highRisk === 0) return NO_DATA_MSG;
+    return `**Employee Monitoring**\n\n• Total Monitored: ${total}\n• High Risk: ${highRisk}\n\nAsk "high risk employees" for details.`;
   }
 
   if (msg.includes("high risk") || msg.includes("risky")) {
-    return getDynamicResponse("employees_highrisk");
+    return getDynamicResponse("employees_highrisk", liveData);
   }
 
   if (msg.includes("status") || msg.includes("system") || msg.includes("health") || msg.includes("dashboard")) {
-    return getDynamicResponse("status");
+    return getDynamicResponse("status", liveData);
   }
 
   if (msg.includes("today") || msg.includes("recent") || msg.includes("latest")) {
-    return getDynamicResponse("anomalies");
+    return getDynamicResponse("anomalies", liveData);
   }
 
-  // Specific employee lookup
-  const employeeMatch = EMPLOYEES_LIST.find((e) => msg.includes(e.name.toLowerCase()));
+  // Specific employee lookup — match by name from live alerts/activities
+  const alerts = (liveData && liveData.alerts) || [];
+  const activities = (liveData && liveData.activities) || [];
+  const allNames = [...new Set([...alerts.map((a) => a.employeeName), ...activities.map((a) => a.employeeName)].filter(Boolean))];
+  const employeeMatch = allNames.find((name) => name && msg.includes(name.toLowerCase()));
   if (employeeMatch) {
-    const alerts = DEMO_ALERTS.filter((a) => a.employeeName === employeeMatch.name);
-    const activities = DEMO_ACTIVITIES.filter((a) => a.employeeName === employeeMatch.name);
-    return `**${employeeMatch.name}**\n\nDepartment: ${employeeMatch.dept}\nRole: ${employeeMatch.role}\nRisk Score: ${employeeMatch.risk}%\n\nAlerts: ${alerts.length}\nRecent Activities: ${activities.length}\n\n${alerts.length > 0 ? `Latest Alert:\n• ${alerts[0].activityType.replace(/_/g, " ")}\n• Severity: ${alerts[0].severity}\n• Status: ${alerts[0].status}` : "No active alerts."}`;
+    const empAlerts = alerts.filter((a) => a.employeeName === employeeMatch);
+    const empActivities = activities.filter((a) => a.employeeName === employeeMatch);
+    const firstAlert = empAlerts[0];
+    const firstAct = empActivities[0];
+    const dept = firstAlert?.department || firstAct?.department || "—";
+    const role = firstAlert?.role || firstAct?.role || "—";
+    const risk = firstAlert?.riskScore ?? firstAct?.riskScore ?? "—";
+    return `**${employeeMatch}**\n\nDepartment: ${dept}\nRole: ${role}\nRisk Score: ${risk}%\n\nAlerts: ${empAlerts.length}\nRecent Activities: ${empActivities.length}\n\n${empAlerts.length > 0 ? `Latest Alert:\n• ${(firstAlert.activityType || "").replace(/_/g, " ")}\n• Severity: ${firstAlert.severity}\n• Status: ${firstAlert.status}` : "No active alerts."}`;
   }
 
   // Type of fraud queries
@@ -630,11 +668,32 @@ export default function Chatbot() {
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [liveData, setLiveData] = useState({ stats: {}, alerts: [], activities: [] });
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Fetch live data from MongoDB (stats, alerts, activities) for dynamic responses
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      api.get("/api/activities/stats").then(({ data }) => data.success ? data : { stats: {}, departmentStats: [], riskDistribution: [], recentTimeline: [] }),
+      api.get("/api/alerts?limit=100").then(({ data }) => data.success && data.data ? data.data : []),
+      api.get("/api/activities?limit=100").then(({ data }) => data.success && data.data ? data.data : []),
+    ]).then(([statsRes, alerts, activities]) => {
+      if (cancelled) return;
+      setLiveData({
+        stats: statsRes.stats || {},
+        alerts: Array.isArray(alerts) ? alerts : [],
+        activities: Array.isArray(activities) ? activities : [],
+      });
+    }).catch(() => {
+      if (!cancelled) setLiveData({ stats: {}, alerts: [], activities: [] });
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -646,7 +705,7 @@ export default function Chatbot() {
     setIsTyping(true);
 
     setTimeout(() => {
-      const response = getBotResponse(currentInput);
+      const response = getBotResponse(currentInput, liveData);
       setMessages((prev) => [...prev, { id: Date.now(), type: "bot", text: response, time: new Date() }]);
       setIsTyping(false);
     }, 600 + Math.random() * 600);

@@ -2,10 +2,17 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieCha
 const COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6"];
 
 export function RiskDistributionChart({ data = [] }) {
-  // Handle both formats: { name, value } or { _id, count }
-  const chartData = data.length && data[0].name ? data : (data.length ? data.map(d => ({ name: d._id + "-" + (d._id + 24) + "%", value: d.count })) : [
-    { name: "Critical", value: 6 }, { name: "High", value: 12 }, { name: "Medium", value: 21 }, { name: "Low", value: 34 }
-  ]);
+  const hasData = Array.isArray(data) && data.length > 0;
+  const chartData = hasData && data[0].name ? data : (hasData ? data.map(d => ({ name: d._id + "-" + (d._id + 24) + "%", value: d.count })) : []);
+  if (chartData.length === 0) {
+    return (
+      <div className="glass-card" style={{ padding: 24 }}>
+        <h3 style={{ color: "#fff", fontWeight: 600, marginBottom: 4 }}>Risk Score Distribution</h3>
+        <p style={{ color: "#64748b", fontSize: 13, marginBottom: 20 }}>Alert severity breakdown</p>
+        <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", fontSize: 13 }}>No distribution data</div>
+      </div>
+    );
+  }
   return (
     <div className="glass-card" style={{ padding: 24 }}>
       <h3 style={{ color: "#fff", fontWeight: 600, marginBottom: 4 }}>Risk Score Distribution</h3>
@@ -24,10 +31,17 @@ export function RiskDistributionChart({ data = [] }) {
 }
 
 export function DepartmentChart({ data = [] }) {
-  // Handle both formats: { dept, avgRisk } or { _id, avgRisk }
-  const chartData = data.length ? data.map(d => ({ dept: d.dept || d._id, avgRisk: d.avgRisk })) : [
-    { dept: "Loans", avgRisk: 58 }, { dept: "IT Admin", avgRisk: 52 }, { dept: "Treasury", avgRisk: 49 }, { dept: "Compliance", avgRisk: 44 }, { dept: "Customer Svc", avgRisk: 28 }
-  ];
+  const hasData = Array.isArray(data) && data.length > 0;
+  const chartData = hasData ? data.map(d => ({ dept: d.dept || d._id, avgRisk: d.avgRisk })) : [];
+  if (chartData.length === 0) {
+    return (
+      <div className="glass-card" style={{ padding: 24 }}>
+        <h3 style={{ color: "#fff", fontWeight: 600, marginBottom: 4 }}>Risk by Department</h3>
+        <p style={{ color: "#64748b", fontSize: 13, marginBottom: 20 }}>Average risk score per department</p>
+        <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", fontSize: 13 }}>No department data</div>
+      </div>
+    );
+  }
   return (
     <div className="glass-card" style={{ padding: 24 }}>
       <h3 style={{ color: "#fff", fontWeight: 600, marginBottom: 4 }}>Risk by Department</h3>

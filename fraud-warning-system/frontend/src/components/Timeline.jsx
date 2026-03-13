@@ -1,14 +1,15 @@
 import { AlertTriangle, Download, Lock, User, Clock, Activity } from "lucide-react";
 const iconMap = { bulk_download: Download, privilege_escalation: Lock, account_modification: User, default: Activity };
-const defaultEvents = [
-  { employeeName: "Marcus Thompson", actionType: "bulk_download", riskScore: 96, timestamp: new Date(Date.now() - 1800000).toISOString() },
-  { employeeName: "David Chen", actionType: "privilege_escalation", riskScore: 88, timestamp: new Date(Date.now() - 3600000).toISOString() },
-  { employeeName: "Lisa Rodriguez", actionType: "account_modification", riskScore: 79, timestamp: new Date(Date.now() - 7200000).toISOString() },
-  { employeeName: "James Okafor", actionType: "bulk_download", riskScore: 83, timestamp: new Date(Date.now() - 10800000).toISOString() }
-];
 function timeAgo(ts) { const m = Math.floor((Date.now() - new Date(ts).getTime()) / 60000); return m < 60 ? m + "m ago" : Math.floor(m/60) + "h ago"; }
-export default function Timeline({ events = defaultEvents }) {
-  const items = events.length ? events : defaultEvents;
+export default function Timeline({ events = [] }) {
+  const items = Array.isArray(events) ? events : [];
+  if (items.length === 0) {
+    return (
+      <div style={{ padding: "24px 0", color: "#64748b", fontSize: 13, textAlign: "center" }}>
+        No recent anomalies
+      </div>
+    );
+  }
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
       {items.slice(0, 5).map((e, i) => {
