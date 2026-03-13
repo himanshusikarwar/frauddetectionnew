@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String?  @unique
+  passwordHash String?
+  name         String?
+  demoId       String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  subjects     Subject[]
+}
+
+model Subject {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  color              String?
+  topicsPerDay       Int       @default(1)
+  scheduleStartDate  DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  studyDayPreferences StudyDayPreference[]
+  topics             Topic[]
+  scheduleEntries    ScheduleEntry[]
+  extractionLogs    ExtractionLog[]
+}
+
+model StudyDayPreference {
+  id        String   @id @default(cuid())
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  dayOfWeek Int
+  @@unique([subjectId, dayOfWeek])
+}
+
+enum TopicStatus {
+  PENDING
+  COMPLETED
+  MISSED
+}
+
+model Topic {
+  id             String    @id @default(cuid())
+  subjectId      String
+  subject        Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  title          String
+  order          Int
+  status         TopicStatus @default(PENDING)
+  createdAt      DateTime  @default(now())
+  scheduleEntry  ScheduleEntry?
+}
+
+enum ScheduleEntryStatus {
+  PENDING
+  COMPLETED
+  MISSED
+  RESCHEDULED
+}
+
+model ScheduleEntry {
+  id             String             @id @default(cuid())
+  subjectId      String
+  subject        Subject            @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  topicId        String             @unique
+  topic          Topic              @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  scheduledDate  DateTime
+  slotIndex      Int                @default(0)
+  status         ScheduleEntryStatus @default(PENDING)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  @@unique([subjectId, scheduledDate, slotIndex])
+}
+
+model ExtractionLog {
+  id             String   @id @default(cuid())
+  userId         String
+  subjectId      String?
+  subject        Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  fileName       String
+  extractedCount Int
+  createdAt      DateTime @default(now())
+}
