@@ -117,19 +117,41 @@ export async function markSessionMissed(entryId: string) {
   if (!entry || entry.subject.userId !== userId) return { ok: false, error: "Not found" };
   if (entry.status !== "PENDING") return { ok: false, error: "Already completed or missed" };
 
-  const missedDate = startOfDay(entry.scheduledDate);
+  const todayStart = startOfDay(new Date());
   const studyDayOfWeek = entry.subject.studyDayPreferences.map((p: { dayOfWeek: number }) => p.dayOfWeek);
+
+  const pastDuePending = await prisma.scheduleEntry.findMany({
+    where: {
+      subjectId: entry.subjectId,
+      status: "PENDING",
+      scheduledDate: { lt: todayStart },
+    },
+  });
+  const entryIdsToMarkMissed = [
+    entryId,
+    ...pastDuePending.map((e: { id: string }) => e.id),
+  ];
+  const uniqueIdsToMark = [...new Set(entryIdsToMarkMissed)];
+
+  await prisma.scheduleEntry.updateMany({
+    where: { id: { in: uniqueIdsToMark } },
+    data: { status: "MISSED" },
+  });
+
+  const datesToConsider = [
+    entry.scheduledDate,
+    ...pastDuePending.map((e: { scheduledDate: Date }) => e.scheduledDate),
+  ];
+  const latestMissedDate = datesToConsider.reduce((latest, d) =>
+    new Date(d) > new Date(latest) ? d : latest
+  );
+  const missedDate = startOfDay(latestMissedDate);
 
   const allPendingTopics = await prisma.topic.findMany({
     where: { subjectId: entry.subjectId, status: "PENDING" },
     orderBy: { order: "asc" },
   });
   const pendingTopicIds = allPendingTopics.map((t: { id: string }) => t.id);
-
-  await prisma.scheduleEntry.update({
-    where: { id: entryId },
-    data: { status: "MISSED" },
-  });
 
   if (pendingTopicIds.length > 0) {
     const newSlots = rescheduleFromMissed({

@@ -56,7 +56,7 @@ model Topic {
   order          Int
   status         TopicStatus @default(PENDING)
   createdAt      DateTime  @default(now())
-  scheduleEntry  ScheduleEntry?
+  scheduleEntries ScheduleEntry[]
 }
 
 enum ScheduleEntryStatus {
@@ -70,7 +70,7 @@ model ScheduleEntry {
   id             String             @id @default(cuid())
   subjectId      String
   subject        Subject            @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  topicId        String             @unique
+  topicId        String
   topic          Topic              @relation(fields: [topicId], references: [id], onDelete: Cascade)
   scheduledDate  DateTime
   slotIndex      Int                @default(0)

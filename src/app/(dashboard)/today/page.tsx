@@ -19,11 +19,18 @@ export default async function TodayPage() {
     where: {
       subject: { userId },
       status: "PENDING",
-      scheduledDate: { gte: todayStart, lte: todayEnd },
+      scheduledDate: { lte: todayEnd },
     },
     include: { subject: true, topic: true },
-    orderBy: [{ subject: { name: "asc" } }, { slotIndex: "asc" }],
+    orderBy: [{ scheduledDate: "asc" }, { subject: { name: "asc" } }, { slotIndex: "asc" }],
   });
+
+  const pastDueEntries = entries.filter(
+    (e: { scheduledDate: Date }) => new Date(e.scheduledDate) < todayStart
+  );
+  const todayEntries = entries.filter(
+    (e: { scheduledDate: Date }) => new Date(e.scheduledDate) >= todayStart
+  );
 
   return (
     <>
@@ -38,14 +45,52 @@ export default async function TodayPage() {
           action={{ label: "View calendar", href: "/calendar" }}
         />
       ) : (
-        <div className="space-y-4 max-w-2xl">
-          {entries.map((entry: { id: string; subject: { name: string }; topic: { title: string } }) => (
-            <Card key={entry.id}>
-              <CardContent className="p-6">
-                <TodayCheckIn entry={entry} />
-              </CardContent>
-            </Card>
-          ))}
+        <div className="space-y-6 max-w-2xl">
+          {pastDueEntries.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-muted-foreground">
+                Past due
+              </h2>
+              <div className="space-y-4">
+                {pastDueEntries.map(
+                  (entry: {
+                    id: string;
+                    subject: { name: string };
+                    topic: { title: string };
+                    scheduledDate: Date;
+                  }) => (
+                    <Card key={entry.id}>
+                      <CardContent className="p-6">
+                        <TodayCheckIn entry={entry} />
+                      </CardContent>
+                    </Card>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+          {todayEntries.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-muted-foreground">
+                Today
+              </h2>
+              <div className="space-y-4">
+                {todayEntries.map(
+                  (entry: {
+                    id: string;
+                    subject: { name: string };
+                    topic: { title: string };
+                  }) => (
+                    <Card key={entry.id}>
+                      <CardContent className="p-6">
+                        <TodayCheckIn entry={entry} />
+                      </CardContent>
+                    </Card>
+                  )
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>
